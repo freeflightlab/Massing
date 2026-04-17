@@ -1,0 +1,2391 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Property KML Block Planner</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-2: #ffffff;
+      --panel-3: #eef3fb;
+      --text: #182230;
+      --muted: #5f6f85;
+      --line: #d7dee9;
+      --accent: #4f7cff;
+      --accent-2: #c7812c;
+      --good: #2f8f5b;
+      --danger: #c84b4b;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+    .app { display: grid; grid-template-columns: 360px minmax(0, 1fr); align-items: start; gap: 0; }
+    .sidebar { background: var(--panel); border-right: 1px solid var(--line); padding: 14px; }
+    .main { position: relative; background: linear-gradient(180deg, #ffffff, #f5f8fc); min-height: 920px; overflow: hidden; }
+    h1 { font-size: 21px; margin: 0 0 6px; }
+    h2 { font-size: 14px; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 10px 24px rgba(25, 41, 61, 0.08);
+    }
+    .section-title { font-weight: 700; margin-bottom: 10px; }
+    .card.collapsible .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 0;
+    }
+    .card.collapsible .section-title::after {
+      content: "▾";
+      font-size: 14px;
+      color: var(--muted);
+      transition: transform 0.22s ease;
+      flex: 0 0 auto;
+    }
+    .card.collapsed .section-title::after { transform: rotate(-90deg); }
+    .card.collapsible .card-body {
+      overflow: hidden;
+      max-height: 2400px;
+      opacity: 1;
+      margin-top: 10px;
+      transition: max-height 0.25s ease, opacity 0.18s ease, margin-top 0.18s ease;
+    }
+    .card.collapsed .card-body {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .row-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input[type="text"], input[type="number"], select, textarea, input[type="color"] {
+      width: 100%;
+      background: #ffffff;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 14px;
+      outline: none;
+    }
+    input[type="color"] { padding: 3px; height: 40px; }
+    input[type="file"] {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      display: block;
+      font-size: 0;
+      color: transparent;
+      overflow: hidden;
+    }
+    input[type="file"]::file-selector-button {
+      font-size: 13px;
+      color: var(--text);
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    input[type="range"] { width: 100%; }
+    button {
+      background: #ffffff;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); color: #081120; border-color: var(--accent); }
+    button.good { background: #edf8f1; border-color: #b9dfc8; color: #205c3d; }
+    button.warn { background: #fff1f1; border-color: #efc2c2; color: #8a3030; }
+    button.active { box-shadow: 0 0 0 2px rgba(137,180,255,0.35) inset; }
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .btn-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .status {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #eef4ff;
+      border: 1px solid #c9d8ff;
+      color: #284477;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .status.good { background: #edf8f1; border-color: #b9dfc8; color: #205c3d; }
+    .status.warn { background: #fff6ea; border-color: #f0d1a3; color: #8b5a13; }
+    .list { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; }
+    .item {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+    .item.active { border-color: var(--accent); background: #eef4ff; }
+    .item-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .item-meta { font-size: 12px; color: var(--muted); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      background: #ffffff;
+    }
+    .hidden { display: none !important; }
+    #canvas {
+      width: 100%;
+      height: 100%;
+      min-height: 920px;
+      display: block;
+      background: linear-gradient(180deg, #ffffff, #f7f9fc);
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: default;
+    }
+    .overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+      flex-wrap: wrap;
+    }
+    .overlay-left, .overlay-right { display: flex; flex-direction: column; gap: 8px; }
+    .chip {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 18px rgba(25, 41, 61, 0.08);
+      pointer-events: auto;
+    }
+    .footer-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    .small { font-size: 11px; }
+    .app > * { min-width: 0; }
+    @media (max-width: 1080px) {
+      .app { grid-template-columns: 1fr; }
+      .main { min-height: 75vh; }
+      #canvas { min-height: 75vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar">
+      <div class="card">
+        <h1>Property KML Block Planner Pro</h1>
+        <h2>Parcel + house massing + per-edge setbacks + driveway paths for Google Earth</h2>
+        <div class="status" id="statusBox">Load a parcel KML or a previous massing-study KML to begin.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Import / Export</div>
+        <label for="kmlInput">Property or study KML</label>
+        <input id="kmlInput" type="file" accept=".kml,.xml" />
+        <div class="btn-grid" style="margin-top:10px;">
+          <button id="fitBtn">Fit to View</button>
+          <button id="clearBtn" class="warn">Clear Design</button>
+        </div>
+        <div style="height:10px"></div>
+        <div class="btn-grid">
+          <button id="exportKmlBtn" class="good">Export KML</button>
+          <button id="exportKmzBtn" class="good">Export KMZ</button>
+        </div>
+        <div class="footer-note">The importer can reopen prior exported studies by reading block metadata from ExtendedData.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Site Rules</div>
+        <div class="row">
+          <div>
+            <label>Units</label>
+            <button id="toggleMetricBtn" class="active">Feet</button>
+          </div>
+          <div>
+            <label id="defaultSetbackLabel">Default Setback (ft)</label>
+            <input id="defaultSetbackInput" type="number" min="0" step="0.1" value="15" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label id="snapGridLabel">Snap Grid (ft)</label>
+            <input id="snapGridInput" type="number" min="0" step="0.1" value="1" />
+          </div>
+          <div>
+            <label>Angle Snap (deg)</label>
+            <input id="angleSnapInput" type="number" min="0" step="1" value="5" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label id="drivewayDefaultWidthLabel">Driveway Default Width (ft)</label>
+            <input id="drivewayDefaultWidthInput" type="number" min="0.5" step="0.1" value="12" />
+          </div>
+          <div>
+            <label>Apply Setback</label>
+            <button id="applyDefaultSetbackBtn">Apply to All Sides</button>
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="btn-grid-4">
+          <button id="toggleSnapBtn" class="active">Snap On</button>
+          <button id="toggleSetbackBtn" class="active">Show Setback</button>
+          <button id="toggleLabelsBtn" class="active">Labels</button>
+          <button id="moveSelectionInsideBtn">Move Inside</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Per-Edge Setbacks</div>
+        <div class="list" id="edgeSetbackList"></div>
+        <div class="footer-note">Each parcel edge can have its own setback. The dashed polygon shows the approximate buildable area.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Create</div>
+        <div class="btn-grid-3">
+          <button id="addBlockBtn" class="primary">Add House</button>
+          <button id="addGenericBtn">Add Generic Block</button>
+          <button id="duplicateBtn">Duplicate</button>
+        </div>
+        <div style="height:10px"></div>
+        <div class="btn-grid-3">
+          <button id="deleteBtn" class="warn">Delete</button>
+          <button id="startDrivewayBtn">Add Driveway</button>
+          <button id="addDrivewayPointBtn">Add Point</button>
+        </div>
+        <div style="height:10px"></div>
+        <div class="btn-grid-3">
+          <button id="deleteDrivewayPointBtn">Delete Point</button>
+          <button disabled style="opacity:0.45;cursor:default;">&nbsp;</button>
+          <button disabled style="opacity:0.45;cursor:default;">&nbsp;</button>
+        </div>
+        <div class="footer-note">Driveway mode: click the canvas to add points, press Enter to finish, or Escape to cancel drawing.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">House Presets</div>
+        <div class="btn-grid">
+          <button data-preset="ranch" class="presetBtn">Ranch</button>
+          <button data-preset="modern" class="presetBtn">Modern</button>
+          <button data-preset="cabin" class="presetBtn">Cabin</button>
+          <button data-preset="a-frame" class="presetBtn">A-Frame</button>
+          <button data-preset="craftsman" class="presetBtn">Craftsman</button>
+          <button data-preset="generic" class="presetBtn">Generic</button>
+          <button data-preset="custom" class="presetBtn">Custom</button>
+        </div>
+        <div class="footer-note">The style preset sets defaults for floors, roof type, roof height, colors, and typical proportions. You can still edit everything after applying it.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Houses</div>
+        <div class="list" id="blockList"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Driveways</div>
+        <div class="list" id="drivewayList"></div>
+      </div>
+
+      <div class="card" id="blockEditor">
+        <div class="section-title">Selected House</div>
+        <div class="row">
+          <div>
+            <label>Name</label>
+            <input id="nameInput" type="text" placeholder="House 1" />
+          </div>
+          <div>
+            <label>Style Preset</label>
+            <select id="stylePresetInput">
+              <option value="ranch">Ranch</option>
+              <option value="modern">Modern</option>
+              <option value="cabin">Cabin</option>
+              <option value="a-frame">A-Frame</option>
+              <option value="craftsman">Craftsman</option>
+              <option value="generic">Generic</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Width (m)</label>
+            <input id="widthInput" type="number" min="1" step="0.1" />
+          </div>
+          <div>
+            <label>Depth (m)</label>
+            <input id="depthInput" type="number" min="1" step="0.1" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Floors</label>
+            <input id="floorsInput" type="number" min="1" step="1" />
+          </div>
+          <div>
+            <label>Floor Height (m)</label>
+            <input id="floorHeightInput" type="number" min="1" step="0.1" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Roof Type</label>
+            <select id="roofTypeInput">
+              <option value="flat">Flat</option>
+              <option value="gable">Gable</option>
+              <option value="hip">Hip</option>
+              <option value="aframe">A-Frame</option>
+            </select>
+          </div>
+          <div>
+            <label>Roof Height (m)</label>
+            <input id="roofHeightInput" type="number" min="0" step="0.1" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Base Altitude (m)</label>
+            <input id="baseAltInput" type="number" step="0.1" />
+          </div>
+          <div>
+            <label>Total Height (m)</label>
+            <input id="totalHeightInput" type="number" step="0.1" disabled />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Center X (m)</label>
+            <input id="xInput" type="number" step="0.1" />
+          </div>
+          <div>
+            <label>Center Y (m)</label>
+            <input id="yInput" type="number" step="0.1" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div>
+          <label>Rotation (deg)</label>
+          <input id="rotInput" type="number" step="1" />
+          <input id="rotSlider" type="range" min="-180" max="180" step="1" style="margin-top:6px;" />
+        </div>
+        <div style="height:10px"></div>
+        <div class="btn-grid-3">
+          <button id="rotLeftBtn">-15°</button>
+          <button id="insideBtn">Move Inside</button>
+          <button id="rotRightBtn">+15°</button>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Fill Color</label>
+            <input id="fillColorInput" type="color" />
+          </div>
+          <div>
+            <label>Outline Color</label>
+            <input id="lineColorInput" type="color" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Fill Opacity</label>
+            <input id="fillOpacityInput" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div>
+            <label>Outline Opacity</label>
+            <input id="lineOpacityInput" type="range" min="0" max="1" step="0.01" />
+          </div>
+        </div>
+        <div class="footer-note">Orange corner handle rotates. Drag the body to move. The house is checked against the property boundary and the current per-edge setbacks.</div>
+      </div>
+
+      <div class="card hidden" id="drivewayEditor">
+        <div class="section-title">Selected Driveway</div>
+        <div class="row">
+          <div>
+            <label>Name</label>
+            <input id="drivewayNameInput" type="text" placeholder="Driveway 1" />
+          </div>
+          <div>
+            <label>Width (m)</label>
+            <input id="drivewayWidthInput" type="number" min="0.5" step="0.1" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Fill Color</label>
+            <input id="drivewayColorInput" type="color" />
+          </div>
+          <div>
+            <label>Outline Color</label>
+            <input id="drivewayLineColorInput" type="color" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <div>
+            <label>Fill Opacity</label>
+            <input id="drivewayOpacityInput" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div>
+            <label>Outline Opacity</label>
+            <input id="drivewayLineOpacityInput" type="range" min="0" max="1" step="0.01" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="btn-grid-3">
+          <button id="drivewayPointStartBtn">Insert Point Start</button>
+          <button id="drivewayPointEndBtn">Insert Point End</button>
+          <button id="drivewayMoveInsideBtn">Move Near Site Center</button>
+        </div>
+        <div class="footer-note">Click and drag the round driveway handles to reshape the path. Export writes the driveway as segment polygons plus a centerline folder.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Notes</div>
+        <p class="muted">Google Earth works well with simple KML geometry. This tool exports editable house solids and driveway surfaces, grouped into folders with metadata, colors, and opacity preserved.</p>
+        <p class="muted">Steps: parcel import, iterative block re-open, style presets, driveway layout, and shareable KML/KMZ output.</p>
+        <p class="muted">Author: Michael Vergalla 4/14/2026</p>
+      </div>
+    </div>
+
+    <div class="main">
+      <canvas id="canvas"></canvas>
+      <div class="overlay">
+        <div class="overlay-left">
+          <div class="chip" id="viewInfo">Scale: —</div>
+          <div class="chip" id="selectionInfo">Selection: none</div>
+        </div>
+        <div class="overlay-right">
+          <div class="chip" id="modeInfo">Mode: select</div>
+          <div class="chip">Left drag: move shape · Orange handle: rotate · Blue handles: driveway points · Wheel: zoom · Right drag: pan</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STYLE_PRESETS = {
+      "ranch": { width: 18, depth: 14, floors: 1, floorHeight: 3.2, roofType: "hip", roofHeight: 2.1, fillColor: "#d5b28c", lineColor: "#7e5532", fillOpacity: 0.72, lineOpacity: 1 },
+      "modern": { width: 20, depth: 12, floors: 2, floorHeight: 3.1, roofType: "flat", roofHeight: 0.7, fillColor: "#b8c4d3", lineColor: "#2d3a45", fillOpacity: 0.68, lineOpacity: 1 },
+      "cabin": { width: 12, depth: 10, floors: 1, floorHeight: 2.8, roofType: "gable", roofHeight: 3.2, fillColor: "#9f6c45", lineColor: "#4f311f", fillOpacity: 0.76, lineOpacity: 1 },
+      "a-frame": { width: 10, depth: 9, floors: 2, floorHeight: 2.4, roofType: "aframe", roofHeight: 4.8, fillColor: "#75543f", lineColor: "#2e2118", fillOpacity: 0.80, lineOpacity: 1 },
+      "craftsman": { width: 16, depth: 13, floors: 2, floorHeight: 3.0, roofType: "gable", roofHeight: 2.8, fillColor: "#9da76a", lineColor: "#49502e", fillOpacity: 0.72, lineOpacity: 1 },
+      "generic": { width: 14, depth: 18, floors: 1, floorHeight: 3.0, roofType: "flat", roofHeight: 0.0, fillColor: "#8aa9d6", lineColor: "#32507d", fillOpacity: 0.65, lineOpacity: 1 },
+      "custom": { width: 16, depth: 12, floors: 1, floorHeight: 3.0, roofType: "flat", roofHeight: 1.0, fillColor: "#8aa9d6", lineColor: "#32507d", fillOpacity: 0.70, lineOpacity: 1 }
+    };
+
+    const appState = {
+      propertyName: "Property",
+      propertyLatLon: [],
+      propertyXY: [],
+      centroid: { lat: 0, lon: 0 },
+      bounds: null,
+      setbackDistance: 4.572,
+      edgeSetbacks: [],
+      showSetback: true,
+      insetPolygon: [],
+      snapEnabled: true,
+      labelsEnabled: true,
+      metricEnabled: false,
+      snapGrid: 0.5,
+      angleSnap: 5,
+      drivewayDefaultWidth: 4,
+      blocks: [],
+      driveways: [],
+      selected: { type: null, id: null },
+      nextBlockId: 1,
+      nextDrivewayId: 1,
+      view: { scale: 1, offsetX: 0, offsetY: 0 },
+      mode: "select",
+      pointer: {
+        mode: null,
+        targetType: null,
+        targetId: null,
+        pointIndex: null,
+        startX: 0,
+        startY: 0,
+        dragOffsetX: 0,
+        dragOffsetY: 0,
+        panStartOffsetX: 0,
+        panStartOffsetY: 0
+      }
+    };
+
+    const els = {
+      canvas: document.getElementById("canvas"),
+      statusBox: document.getElementById("statusBox"),
+      kmlInput: document.getElementById("kmlInput"),
+      fitBtn: document.getElementById("fitBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      exportKmlBtn: document.getElementById("exportKmlBtn"),
+      exportKmzBtn: document.getElementById("exportKmzBtn"),
+      defaultSetbackInput: document.getElementById("defaultSetbackInput"),
+      applyDefaultSetbackBtn: document.getElementById("applyDefaultSetbackBtn"),
+      edgeSetbackList: document.getElementById("edgeSetbackList"),
+      setbackInput: document.getElementById("setbackInput"),
+      snapGridInput: document.getElementById("snapGridInput"),
+      angleSnapInput: document.getElementById("angleSnapInput"),
+      drivewayDefaultWidthInput: document.getElementById("drivewayDefaultWidthInput"),
+      toggleSnapBtn: document.getElementById("toggleSnapBtn"),
+      toggleSetbackBtn: document.getElementById("toggleSetbackBtn"),
+      toggleLabelsBtn: document.getElementById("toggleLabelsBtn"),
+      toggleMetricBtn: document.getElementById("toggleMetricBtn"),
+      moveSelectionInsideBtn: document.getElementById("moveSelectionInsideBtn"),
+      addBlockBtn: document.getElementById("addBlockBtn"),
+      addGenericBtn: document.getElementById("addGenericBtn"),
+      duplicateBtn: document.getElementById("duplicateBtn"),
+      deleteBtn: document.getElementById("deleteBtn"),
+      startDrivewayBtn: document.getElementById("startDrivewayBtn"),
+      addDrivewayPointBtn: document.getElementById("addDrivewayPointBtn"),
+      deleteDrivewayPointBtn: document.getElementById("deleteDrivewayPointBtn"),
+      blockList: document.getElementById("blockList"),
+      drivewayList: document.getElementById("drivewayList"),
+      blockEditor: document.getElementById("blockEditor"),
+      drivewayEditor: document.getElementById("drivewayEditor"),
+      nameInput: document.getElementById("nameInput"),
+      stylePresetInput: document.getElementById("stylePresetInput"),
+      widthInput: document.getElementById("widthInput"),
+      depthInput: document.getElementById("depthInput"),
+      floorsInput: document.getElementById("floorsInput"),
+      floorHeightInput: document.getElementById("floorHeightInput"),
+      roofTypeInput: document.getElementById("roofTypeInput"),
+      roofHeightInput: document.getElementById("roofHeightInput"),
+      baseAltInput: document.getElementById("baseAltInput"),
+      totalHeightInput: document.getElementById("totalHeightInput"),
+      xInput: document.getElementById("xInput"),
+      yInput: document.getElementById("yInput"),
+      rotInput: document.getElementById("rotInput"),
+      rotSlider: document.getElementById("rotSlider"),
+      rotLeftBtn: document.getElementById("rotLeftBtn"),
+      rotRightBtn: document.getElementById("rotRightBtn"),
+      insideBtn: document.getElementById("insideBtn"),
+      fillColorInput: document.getElementById("fillColorInput"),
+      lineColorInput: document.getElementById("lineColorInput"),
+      fillOpacityInput: document.getElementById("fillOpacityInput"),
+      lineOpacityInput: document.getElementById("lineOpacityInput"),
+      drivewayNameInput: document.getElementById("drivewayNameInput"),
+      drivewayWidthInput: document.getElementById("drivewayWidthInput"),
+      drivewayColorInput: document.getElementById("drivewayColorInput"),
+      drivewayLineColorInput: document.getElementById("drivewayLineColorInput"),
+      drivewayOpacityInput: document.getElementById("drivewayOpacityInput"),
+      drivewayLineOpacityInput: document.getElementById("drivewayLineOpacityInput"),
+      drivewayPointStartBtn: document.getElementById("drivewayPointStartBtn"),
+      drivewayPointEndBtn: document.getElementById("drivewayPointEndBtn"),
+      drivewayMoveInsideBtn: document.getElementById("drivewayMoveInsideBtn"),
+      viewInfo: document.getElementById("viewInfo"),
+      selectionInfo: document.getElementById("selectionInfo"),
+      modeInfo: document.getElementById("modeInfo"),
+      presetBtns: Array.from(document.querySelectorAll(".presetBtn"))
+    };
+
+    const ctx = els.canvas.getContext("2d");
+    const FT_PER_M = 3.280839895;
+    const M_PER_FT = 1 / FT_PER_M;
+
+    function metersToDisplay(value) {
+      return appState.metricEnabled ? value : value * FT_PER_M;
+    }
+
+    function displayToMeters(value) {
+      const n = parseFloat(value);
+      if (!Number.isFinite(n)) return 0;
+      return appState.metricEnabled ? n : n * M_PER_FT;
+    }
+
+    function unitShort() {
+      return appState.metricEnabled ? "m" : "ft";
+    }
+
+    function formatDisplay(value, digits = 1) {
+      return metersToDisplay(value).toFixed(digits);
+    }
+
+
+    function setStatus(message, tone = "info") {
+      els.statusBox.textContent = message;
+      els.statusBox.className = "status" + (tone === "good" ? " good" : tone === "warn" ? " warn" : "");
+    }
+
+    function updateModeInfo() {
+      els.modeInfo.textContent = `Mode: ${appState.mode}`;
+    }
+
+    function metersPerDegLat() { return 111132.92; }
+    function metersPerDegLon(latDeg) { return 111412.84 * Math.cos(latDeg * Math.PI / 180); }
+
+    function latLonToXY(lat, lon, centroid) {
+      return {
+        x: (lon - centroid.lon) * metersPerDegLon(centroid.lat),
+        y: (lat - centroid.lat) * metersPerDegLat()
+      };
+    }
+
+    function xyToLatLon(x, y, centroid) {
+      return {
+        lat: centroid.lat + y / metersPerDegLat(),
+        lon: centroid.lon + x / metersPerDegLon(centroid.lat)
+      };
+    }
+
+
+    function scheduleEmbeddedResizeKick() {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("resize"));
+        setTimeout(() => window.dispatchEvent(new Event("resize")), 80);
+        setTimeout(() => window.dispatchEvent(new Event("resize")), 240);
+      });
+    }
+
+    function resizeCanvas() {
+      const rect = els.canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      els.canvas.width = Math.round(rect.width * dpr);
+      els.canvas.height = Math.round(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    }
+
+    function polygonArea(points) {
+      let a = 0;
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        const q = points[(i + 1) % points.length];
+        a += p.x * q.y - q.x * p.y;
+      }
+      return a / 2;
+    }
+
+    function polygonCentroid(points) {
+      let x = 0, y = 0;
+      points.forEach(p => { x += p.x; y += p.y; });
+      return { x: x / Math.max(1, points.length), y: y / Math.max(1, points.length) };
+    }
+
+    function computeBounds(points) {
+      if (!points || !points.length) return null;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      points.forEach(p => {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      });
+      return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+    }
+
+    function fitView() {
+      const all = [...appState.propertyXY];
+      appState.blocks.forEach(block => all.push(...getBlockCorners(block)));
+      appState.driveways.forEach(d => all.push(...d.points));
+      if (!all.length) return;
+      const b = computeBounds(all);
+      appState.bounds = b;
+      const w = els.canvas.clientWidth;
+      const h = els.canvas.clientHeight;
+      const pad = 60;
+      const sx = (w - pad * 2) / Math.max(1, b.width);
+      const sy = (h - pad * 2) / Math.max(1, b.height);
+      appState.view.scale = Math.max(0.08, Math.min(sx, sy));
+      appState.view.offsetX = w / 2 - (b.minX + b.maxX) / 2 * appState.view.scale;
+      appState.view.offsetY = h / 2 + (b.minY + b.maxY) / 2 * appState.view.scale;
+      draw();
+    }
+
+    function worldToScreen(x, y) {
+      return {
+        x: x * appState.view.scale + appState.view.offsetX,
+        y: appState.view.offsetY - y * appState.view.scale
+      };
+    }
+
+    function screenToWorld(x, y) {
+      return {
+        x: (x - appState.view.offsetX) / appState.view.scale,
+        y: (appState.view.offsetY - y) / appState.view.scale
+      };
+    }
+
+    function snapValue(v, step) {
+      if (!appState.snapEnabled || !step || step <= 0) return v;
+      return Math.round(v / step) * step;
+    }
+
+    function snapPoint(pt) {
+      return {
+        x: snapValue(pt.x, appState.snapGrid),
+        y: snapValue(pt.y, appState.snapGrid)
+      };
+    }
+
+    function normalizeAngle(deg) {
+      let a = deg;
+      while (a <= -180) a += 360;
+      while (a > 180) a -= 360;
+      return a;
+    }
+
+    function snappedAngle(deg) {
+      const a = normalizeAngle(deg);
+      if (!appState.snapEnabled || !appState.angleSnap || appState.angleSnap <= 0) return a;
+      return Math.round(a / appState.angleSnap) * appState.angleSnap;
+    }
+
+    function getSelectedBlock() {
+      return appState.selected.type === "block" ? appState.blocks.find(b => b.id === appState.selected.id) || null : null;
+    }
+
+    function getSelectedDriveway() {
+      return appState.selected.type === "driveway" ? appState.driveways.find(d => d.id === appState.selected.id) || null : null;
+    }
+
+    function selectItem(type, id) {
+      appState.selected = { type, id };
+      refreshUI();
+      draw();
+    }
+
+    function clearSelection() {
+      appState.selected = { type: null, id: null };
+      refreshUI();
+      draw();
+    }
+
+    function getEaveHeight(block) {
+      return Math.max(0, block.floors * block.floorHeight);
+    }
+
+    function getTotalHeight(block) {
+      return getEaveHeight(block) + block.roofHeight;
+    }
+
+    function applyPresetToBlock(block, presetName, preservePosition = true) {
+      const preset = STYLE_PRESETS[presetName] || STYLE_PRESETS.custom;
+      const pos = preservePosition ? { x: block.x, y: block.y, rotation: block.rotation } : { x: 0, y: 0, rotation: 0 };
+      Object.assign(block, structuredClone(preset), pos);
+      block.stylePreset = presetName;
+    }
+
+    function createDefaultBlock() {
+      const center = appState.propertyXY.length ? polygonCentroid(appState.propertyXY) : { x: 0, y: 0 };
+      const id = appState.nextBlockId++;
+      const block = {
+        id,
+        name: `House ${id}`,
+        x: center.x,
+        y: center.y,
+        rotation: 0,
+        stylePreset: "ranch",
+        width: 16,
+        depth: 12,
+        floors: 1,
+        floorHeight: 3,
+        roofType: "hip",
+        roofHeight: 2,
+        baseAltitude: 0,
+        fillColor: "#d5b28c",
+        lineColor: "#7e5532",
+        fillOpacity: 0.72,
+        lineOpacity: 1
+      };
+      applyPresetToBlock(block, "ranch");
+      return block;
+    }
+
+    function createBlock() {
+      const block = createDefaultBlock();
+      appState.blocks.push(block);
+      selectItem("block", block.id);
+      moveBlockInside(block);
+      setStatus("House added. Apply a style preset or adjust dimensions, floors, roof, colors, and opacity.", "good");
+    }
+
+    function createGenericBlock() {
+      const block = createDefaultBlock();
+      block.name = `Block ${block.id}`;
+      applyPresetToBlock(block, "generic", true);
+      appState.blocks.push(block);
+      selectItem("block", block.id);
+      moveBlockInside(block);
+      setStatus("Generic massing block added.", "good");
+    }
+
+    function duplicateSelected() {
+      const block = getSelectedBlock();
+      if (block) {
+        const copy = structuredClone(block);
+        copy.id = appState.nextBlockId++;
+        copy.name = `${block.name} Copy`;
+        copy.x += 3;
+        copy.y += 3;
+        appState.blocks.push(copy);
+        selectItem("block", copy.id);
+        return;
+      }
+      const driveway = getSelectedDriveway();
+      if (driveway) {
+        const copy = structuredClone(driveway);
+        copy.id = appState.nextDrivewayId++;
+        copy.name = `${driveway.name} Copy`;
+        copy.points = copy.points.map((p, idx) => ({ x: p.x + 3, y: p.y + 3 + idx * 0.3 }));
+        appState.driveways.push(copy);
+        selectItem("driveway", copy.id);
+      }
+    }
+
+    function deleteSelected() {
+      if (appState.selected.type === "block") {
+        appState.blocks = appState.blocks.filter(b => b.id !== appState.selected.id);
+      } else if (appState.selected.type === "driveway") {
+        appState.driveways = appState.driveways.filter(d => d.id !== appState.selected.id);
+      }
+      clearSelection();
+    }
+
+    function createDriveway(beginDraw = true) {
+      const center = appState.propertyXY.length ? polygonCentroid(appState.propertyXY) : { x: 0, y: 0 };
+      const d = {
+        id: appState.nextDrivewayId++,
+        name: `Driveway ${appState.nextDrivewayId - 1}`,
+        width: appState.drivewayDefaultWidth,
+        points: [
+          { x: center.x - 8, y: center.y - 8 },
+          { x: center.x + 8, y: center.y - 8 }
+        ],
+        fillColor: "#9aa0a6",
+        lineColor: "#4e5358",
+        fillOpacity: 0.68,
+        lineOpacity: 1
+      };
+      appState.driveways.push(d);
+      selectItem("driveway", d.id);
+      if (beginDraw) {
+        appState.mode = "draw-driveway";
+        updateModeInfo();
+        setStatus("Driveway mode is active. Click to add points, press Enter to finish, Escape to cancel drawing.", "good");
+      }
+    }
+
+    function addPointToSelectedDriveway(atStart = false) {
+      const d = getSelectedDriveway();
+      if (!d) return;
+      if (d.points.length < 1) d.points.push({ x: 0, y: 0 });
+      if (atStart) {
+        const first = d.points[0];
+        const second = d.points[1] || { x: first.x + 6, y: first.y };
+        const dx = first.x - second.x, dy = first.y - second.y;
+        d.points.unshift({ x: first.x + dx, y: first.y + dy });
+      } else {
+        const last = d.points[d.points.length - 1];
+        const prev = d.points[d.points.length - 2] || { x: last.x - 6, y: last.y };
+        const dx = last.x - prev.x, dy = last.y - prev.y;
+        d.points.push({ x: last.x + dx, y: last.y + dy });
+      }
+      refreshUI();
+      draw();
+    }
+
+    function deletePointFromSelectedDriveway() {
+      const d = getSelectedDriveway();
+      if (!d || d.points.length <= 2) return;
+      d.points.pop();
+      refreshUI();
+      draw();
+    }
+
+    function getBlockCorners(block) {
+      const hw = block.width / 2;
+      const hd = block.depth / 2;
+      const ang = block.rotation * Math.PI / 180;
+      const c = Math.cos(ang), s = Math.sin(ang);
+      return [
+        { x: -hw, y: -hd },
+        { x: hw, y: -hd },
+        { x: hw, y: hd },
+        { x: -hw, y: hd }
+      ].map(p => ({
+        x: block.x + p.x * c - p.y * s,
+        y: block.y + p.x * s + p.y * c
+      }));
+    }
+
+    function pointInPolygon(pt, poly) {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].x, yi = poly[i].y;
+        const xj = poly[j].x, yj = poly[j].y;
+        const intersect = ((yi > pt.y) !== (yj > pt.y)) &&
+          (pt.x < (xj - xi) * (pt.y - yi) / ((yj - yi) || 1e-9) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function distancePointToSegment(p, a, b) {
+      const vx = b.x - a.x, vy = b.y - a.y;
+      const wx = p.x - a.x, wy = p.y - a.y;
+      const c1 = vx * wx + vy * wy;
+      if (c1 <= 0) return Math.hypot(p.x - a.x, p.y - a.y);
+      const c2 = vx * vx + vy * vy;
+      if (c2 <= c1) return Math.hypot(p.x - b.x, p.y - b.y);
+      const t = c1 / c2;
+      const proj = { x: a.x + t * vx, y: a.y + t * vy };
+      return Math.hypot(p.x - proj.x, p.y - proj.y);
+    }
+
+    function minDistanceToPolygonEdges(pt, poly) {
+      let min = Infinity;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        min = Math.min(min, distancePointToSegment(pt, a, b));
+      }
+      return min;
+    }
+
+    function pointClearOfEdgeSetbacks(pt) {
+      if (!appState.propertyXY.length) return true;
+      let minMargin = Infinity;
+      for (let i = 0; i < appState.propertyXY.length; i++) {
+        const a = appState.propertyXY[i];
+        const b = appState.propertyXY[(i + 1) % appState.propertyXY.length];
+        const setback = appState.edgeSetbacks[i] ?? appState.setbackDistance ?? 0;
+        const edgeDist = distancePointToSegment(pt, a, b);
+        minMargin = Math.min(minMargin, edgeDist - setback);
+      }
+      return minMargin >= -1e-6;
+    }
+
+    function blockWithinSetbacks(block) {
+      if (!appState.propertyXY.length) return true;
+      const corners = getBlockCorners(block);
+      return corners.every(p => pointInPolygon(p, appState.propertyXY) && pointClearOfEdgeSetbacks(p));
+    }
+
+    function moveBlockInside(block) {
+      if (!appState.propertyXY.length) return;
+      const c = polygonCentroid(appState.propertyXY);
+      for (let i = 0; i < 120 && !blockWithinSetbacks(block); i++) {
+        block.x += (c.x - block.x) * 0.15;
+        block.y += (c.y - block.y) * 0.15;
+      }
+      refreshUI();
+      draw();
+    }
+
+    function moveDrivewayNearSiteCenter(driveway) {
+      if (!appState.propertyXY.length || !driveway) return;
+      const c = polygonCentroid(appState.propertyXY);
+      const current = driveway.points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+      current.x /= driveway.points.length;
+      current.y /= driveway.points.length;
+      const dx = c.x - current.x;
+      const dy = c.y - current.y;
+      driveway.points.forEach(p => { p.x += dx * 0.7; p.y += dy * 0.7; });
+      refreshUI();
+      draw();
+    }
+
+    function lineIntersection(p1, p2, p3, p4) {
+      const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+      const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+      const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+      if (Math.abs(den) < 1e-9) return null;
+      const px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / den;
+      const py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / den;
+      return { x: px, y: py };
+    }
+
+    function computeInsetPolygon(poly, setbackSpec) {
+      if (!poly.length) return poly.slice();
+      const setbacks = Array.isArray(setbackSpec) ? setbackSpec : poly.map(() => setbackSpec);
+      const area = polygonArea(poly);
+      const sign = area >= 0 ? 1 : -1;
+      const offsetLines = [];
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const inward = sign > 0 ? { x: -dy / len, y: dx / len } : { x: dy / len, y: -dx / len };
+        const setback = Math.max(0, setbacks[i] ?? 0);
+        offsetLines.push({
+          a: { x: a.x + inward.x * setback, y: a.y + inward.y * setback },
+          b: { x: b.x + inward.x * setback, y: b.y + inward.y * setback }
+        });
+      }
+      const inset = [];
+      for (let i = 0; i < offsetLines.length; i++) {
+        const prev = offsetLines[(i - 1 + offsetLines.length) % offsetLines.length];
+        const curr = offsetLines[i];
+        const inter = lineIntersection(prev.a, prev.b, curr.a, curr.b);
+        inset.push(inter || curr.a);
+      }
+      return inset.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+    }
+
+    function updateInsetPolygon() {
+      const spec = appState.edgeSetbacks.length ? appState.edgeSetbacks : appState.setbackDistance;
+      appState.insetPolygon = computeInsetPolygon(appState.propertyXY, spec);
+    }
+
+    function rebuildEdgeSetbackUI() {
+      if (!els.edgeSetbackList) return;
+      els.edgeSetbackList.innerHTML = "";
+      if (!appState.propertyXY.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "Load a parcel to edit per-edge setbacks.";
+        els.edgeSetbackList.appendChild(empty);
+        return;
+      }
+      appState.propertyXY.forEach((_, idx) => {
+        const row = document.createElement("div");
+        row.className = "edge-item";
+        const tag = document.createElement("div");
+        tag.className = "muted";
+        tag.textContent = `Edge ${idx + 1}`;
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "0";
+        input.step = "0.1";
+        input.value = formatDisplay(appState.edgeSetbacks[idx] ?? appState.setbackDistance ?? 0, 1);
+        input.addEventListener("input", () => {
+          appState.edgeSetbacks[idx] = Math.max(0, displayToMeters(input.value));
+          updateInsetPolygon();
+          draw();
+        });
+        row.appendChild(tag);
+        row.appendChild(input);
+        els.edgeSetbackList.appendChild(row);
+      });
+    }
+
+    function updateUnitLabels() {
+      const u = unitShort();
+      els.toggleMetricBtn.textContent = appState.metricEnabled ? "Metric" : "Feet";
+      if (els.defaultSetbackInput) els.defaultSetbackInput.parentElement.querySelector("label").textContent = `Default Setback (${u})`;
+      els.snapGridInput.parentElement.querySelector("label").textContent = `Snap Grid (${u})`;
+      els.drivewayDefaultWidthInput.parentElement.querySelector("label").textContent = `Driveway Default Width (${u})`;
+      els.widthInput.parentElement.querySelector("label").textContent = `Width (${u})`;
+      els.depthInput.parentElement.querySelector("label").textContent = `Depth (${u})`;
+      els.floorHeightInput.parentElement.querySelector("label").textContent = `Floor Height (${u})`;
+      els.roofHeightInput.parentElement.querySelector("label").textContent = `Roof Height (${u})`;
+      els.baseAltInput.parentElement.querySelector("label").textContent = `Base Altitude (${u})`;
+      els.totalHeightInput.parentElement.querySelector("label").textContent = `Total Height (${u})`;
+      els.xInput.parentElement.querySelector("label").textContent = `Center X (${u})`;
+      els.yInput.parentElement.querySelector("label").textContent = `Center Y (${u})`;
+      els.drivewayWidthInput.parentElement.querySelector("label").textContent = `Width (${u})`;
+    }
+
+    function refreshUI() {
+      updateInsetPolygon();
+      renderBlockList();
+      renderDrivewayList();
+      rebuildEdgeSetbackUI();
+      updateUnitLabels();
+      if (els.defaultSetbackInput) els.defaultSetbackInput.value = formatDisplay(appState.setbackDistance, 1);
+      els.snapGridInput.value = formatDisplay(appState.snapGrid, 2);
+      els.drivewayDefaultWidthInput.value = formatDisplay(appState.drivewayDefaultWidth, 2);
+      const block = getSelectedBlock();
+      const driveway = getSelectedDriveway();
+      els.blockEditor.classList.toggle("hidden", !block);
+      els.drivewayEditor.classList.toggle("hidden", !driveway);
+
+      if (block) {
+        els.selectionInfo.textContent = `Selection: ${block.name}`;
+        els.nameInput.value = block.name;
+        els.stylePresetInput.value = block.stylePreset || "custom";
+        els.widthInput.value = formatDisplay(block.width, 2);
+        els.depthInput.value = formatDisplay(block.depth, 2);
+        els.floorsInput.value = block.floors;
+        els.floorHeightInput.value = formatDisplay(block.floorHeight, 2);
+        els.roofTypeInput.value = block.roofType;
+        els.roofHeightInput.value = formatDisplay(block.roofHeight, 2);
+        els.baseAltInput.value = formatDisplay(block.baseAltitude, 2);
+        els.totalHeightInput.value = formatDisplay(getTotalHeight(block), 2);
+        els.xInput.value = formatDisplay(block.x, 2);
+        els.yInput.value = formatDisplay(block.y, 2);
+        els.rotInput.value = block.rotation.toFixed(1);
+        els.rotSlider.value = Math.round(normalizeAngle(block.rotation));
+        els.fillColorInput.value = block.fillColor;
+        els.lineColorInput.value = block.lineColor;
+        els.fillOpacityInput.value = block.fillOpacity;
+        els.lineOpacityInput.value = block.lineOpacity;
+      } else if (driveway) {
+        els.selectionInfo.textContent = `Selection: ${driveway.name}`;
+        els.drivewayNameInput.value = driveway.name;
+        els.drivewayWidthInput.value = formatDisplay(driveway.width, 2);
+        els.drivewayColorInput.value = driveway.fillColor;
+        els.drivewayLineColorInput.value = driveway.lineColor;
+        els.drivewayOpacityInput.value = driveway.fillOpacity;
+        els.drivewayLineOpacityInput.value = driveway.lineOpacity;
+      } else {
+        els.selectionInfo.textContent = "Selection: none";
+      }
+
+      els.deleteBtn.disabled = !(block || driveway);
+      els.duplicateBtn.disabled = !(block || driveway);
+      updateToggleButtons();
+    }
+
+    function updateToggleButtons() {
+      els.toggleSnapBtn.classList.toggle("active", appState.snapEnabled);
+      els.toggleSnapBtn.textContent = appState.snapEnabled ? "Snap On" : "Snap Off";
+      els.toggleSetbackBtn.classList.toggle("active", appState.showSetback);
+      els.toggleSetbackBtn.textContent = appState.showSetback ? "Show Setback" : "Hide Setback";
+      els.toggleLabelsBtn.classList.toggle("active", appState.labelsEnabled);
+      els.toggleLabelsBtn.textContent = appState.labelsEnabled ? "Labels" : "No Labels";
+      els.toggleMetricBtn.classList.toggle("active", true);
+      els.toggleMetricBtn.textContent = appState.metricEnabled ? "Metric" : "Feet";
+    }
+
+    function renderBlockList() {
+      els.blockList.innerHTML = "";
+      if (!appState.blocks.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "No houses yet.";
+        els.blockList.appendChild(empty);
+        return;
+      }
+      appState.blocks.forEach(block => {
+        const item = document.createElement("div");
+        item.className = "item" + (appState.selected.type === "block" && appState.selected.id === block.id ? " active" : "");
+        item.innerHTML = `<div class="item-title"></div><div class="item-meta"></div>`;
+        item.querySelector(".item-title").textContent = block.name;
+        const inside = blockWithinSetbacks(block) ? "inside" : "outside";
+        item.querySelector(".item-meta").textContent = `${block.stylePreset} · ${formatDisplay(block.width,1)} × ${formatDisplay(block.depth,1)} ${unitShort()} · ${block.floors} fl · ${block.roofType} · ${inside}`;
+        item.onclick = () => selectItem("block", block.id);
+        els.blockList.appendChild(item);
+      });
+    }
+
+    function renderDrivewayList() {
+      els.drivewayList.innerHTML = "";
+      if (!appState.driveways.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "No driveways yet.";
+        els.drivewayList.appendChild(empty);
+        return;
+      }
+      appState.driveways.forEach(driveway => {
+        const item = document.createElement("div");
+        item.className = "item" + (appState.selected.type === "driveway" && appState.selected.id === driveway.id ? " active" : "");
+        item.innerHTML = `<div class="item-title"></div><div class="item-meta"></div>`;
+        item.querySelector(".item-title").textContent = driveway.name;
+        item.querySelector(".item-meta").textContent = `${driveway.points.length} pts · ${formatDisplay(driveway.width,1)} ${unitShort()} wide`;
+        item.onclick = () => selectItem("driveway", driveway.id);
+        els.drivewayList.appendChild(item);
+      });
+    }
+
+    function drawGrid() {
+      const w = els.canvas.clientWidth, h = els.canvas.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#f8fbff";
+      ctx.fillRect(0, 0, w, h);
+
+      const step = (() => {
+        const pixelsPer10m = appState.view.scale * 10;
+        if (pixelsPer10m < 10) return 20;
+        if (pixelsPer10m < 18) return 10;
+        if (pixelsPer10m < 35) return 5;
+        if (pixelsPer10m < 60) return 2;
+        return 1;
+      })();
+
+      const worldTL = screenToWorld(0, 0);
+      const worldBR = screenToWorld(w, h);
+
+      ctx.strokeStyle = "rgba(122, 141, 173, 0.16)";
+      ctx.lineWidth = 1;
+      const startX = Math.floor(worldTL.x / step) * step;
+      const endX = Math.ceil(worldBR.x / step) * step;
+      const startY = Math.floor(worldBR.y / step) * step;
+      const endY = Math.ceil(worldTL.y / step) * step;
+      for (let x = startX; x <= endX; x += step) {
+        const s = worldToScreen(x, 0);
+        ctx.beginPath();
+        ctx.moveTo(s.x, 0);
+        ctx.lineTo(s.x, h);
+        ctx.stroke();
+      }
+      for (let y = startY; y <= endY; y += step) {
+        const s = worldToScreen(0, y);
+        ctx.beginPath();
+        ctx.moveTo(0, s.y);
+        ctx.lineTo(w, s.y);
+        ctx.stroke();
+      }
+      els.viewInfo.textContent = `Scale: ${appState.view.scale.toFixed(2)} px/m`;
+    }
+
+    function drawProperty() {
+      if (!appState.propertyXY.length) return;
+      ctx.beginPath();
+      appState.propertyXY.forEach((p, i) => {
+        const s = worldToScreen(p.x, p.y);
+        if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = "rgba(110, 152, 220, 0.12)";
+      ctx.fill();
+      ctx.strokeStyle = "#5f8dd9";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      if (appState.showSetback && appState.insetPolygon.length >= 3) {
+        ctx.beginPath();
+        appState.insetPolygon.forEach((p, i) => {
+          const s = worldToScreen(p.x, p.y);
+          if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+        });
+        ctx.closePath();
+        ctx.strokeStyle = "rgba(199, 129, 44, 0.9)";
+        ctx.setLineDash([8, 6]);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    function hexToRgba(hex, alpha) {
+      const h = hex.replace("#", "");
+      const num = parseInt(h, 16);
+      const r = (num >> 16) & 255;
+      const g = (num >> 8) & 255;
+      const b = num & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function localToWorld(block, x, y) {
+      const ang = block.rotation * Math.PI / 180;
+      const c = Math.cos(ang), s = Math.sin(ang);
+      return {
+        x: block.x + x * c - y * s,
+        y: block.y + x * s + y * c
+      };
+    }
+
+    function drawBlockDirectionArrow(block, selected) {
+      const center = worldToScreen(block.x, block.y);
+      const dir = worldToScreen(
+        block.x + Math.cos(block.rotation * Math.PI / 180) * (block.width / 2),
+        block.y + Math.sin(block.rotation * Math.PI / 180) * (block.width / 2)
+      );
+      ctx.strokeStyle = selected ? "#c7812c" : "#4c7a5b";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(center.x, center.y);
+      ctx.lineTo(dir.x, dir.y);
+      ctx.stroke();
+      ctx.fillStyle = "#335a7a";
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, selected ? 4 : 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawRoofSymbol(block) {
+      const selected = appState.selected.type === "block" && appState.selected.id === block.id;
+      const symColor = selected ? "rgba(199,129,44,0.88)" : "rgba(59,86,120,0.55)";
+      ctx.strokeStyle = symColor;
+      ctx.lineWidth = 2;
+
+      if (block.roofType === "gable" || block.roofType === "hip" || block.roofType === "aframe") {
+        const ridgeA = localToWorld(block, -block.width * 0.33, 0);
+        const ridgeB = localToWorld(block, block.width * 0.33, 0);
+        const a = worldToScreen(ridgeA.x, ridgeA.y);
+        const b = worldToScreen(ridgeB.x, ridgeB.y);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+      if (block.roofType === "flat") {
+        const c = worldToScreen(block.x, block.y);
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    function drawBlocks() {
+      appState.blocks.forEach(block => {
+        const corners = getBlockCorners(block);
+        const selected = appState.selected.type === "block" && appState.selected.id === block.id;
+        const inside = blockWithinSetbacks(block);
+        ctx.beginPath();
+        corners.forEach((p, i) => {
+          const s = worldToScreen(p.x, p.y);
+          if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = inside ? hexToRgba(block.fillColor, selected ? Math.min(1, block.fillOpacity + 0.12) : block.fillOpacity) : "rgba(255,123,123,0.24)";
+        ctx.fill();
+        ctx.strokeStyle = inside ? hexToRgba(block.lineColor, block.lineOpacity) : "#ff7b7b";
+        ctx.lineWidth = selected ? 3 : 2;
+        ctx.stroke();
+
+        drawBlockDirectionArrow(block, selected);
+        drawRoofSymbol(block);
+
+        if (appState.labelsEnabled) {
+          const center = worldToScreen(block.x, block.y);
+          ctx.fillStyle = "#28415e";
+          ctx.font = "12px Inter, Arial";
+          ctx.fillText(`${block.name} · ${block.stylePreset}`, center.x + 8, center.y - 8);
+        }
+
+        if (selected) {
+          const handleWorld = corners[1];
+          const hs = worldToScreen(handleWorld.x, handleWorld.y);
+          ctx.fillStyle = "#f7b267";
+          ctx.beginPath();
+          ctx.arc(hs.x, hs.y, 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#7d5a21";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+    }
+
+    function drawDriveways() {
+      appState.driveways.forEach(driveway => {
+        const selected = appState.selected.type === "driveway" && appState.selected.id === driveway.id;
+        if (driveway.points.length >= 2) {
+          ctx.strokeStyle = hexToRgba(driveway.fillColor, Math.min(1, driveway.fillOpacity));
+          ctx.lineWidth = driveway.width * appState.view.scale;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.beginPath();
+          driveway.points.forEach((p, i) => {
+            const s = worldToScreen(p.x, p.y);
+            if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+          });
+          ctx.stroke();
+
+          ctx.strokeStyle = hexToRgba(driveway.lineColor, driveway.lineOpacity);
+          ctx.lineWidth = selected ? 3 : 2;
+          ctx.beginPath();
+          driveway.points.forEach((p, i) => {
+            const s = worldToScreen(p.x, p.y);
+            if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+          });
+          ctx.stroke();
+        }
+
+        driveway.points.forEach((p, idx) => {
+          const s = worldToScreen(p.x, p.y);
+          ctx.fillStyle = selected ? "#5d9bd3" : "#8bb1d6";
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, selected ? 6 : 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#315a7a";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          if (selected && appState.labelsEnabled) {
+            ctx.fillStyle = "#28415e";
+            ctx.font = "11px Inter, Arial";
+            ctx.fillText(`${idx + 1}`, s.x + 8, s.y - 6);
+          }
+        });
+
+        if (appState.labelsEnabled && driveway.points.length) {
+          const mid = driveway.points[Math.floor(driveway.points.length / 2)];
+          const s = worldToScreen(mid.x, mid.y);
+          ctx.fillStyle = "#28415e";
+          ctx.font = "12px Inter, Arial";
+          ctx.fillText(driveway.name, s.x + 8, s.y + 14);
+        }
+      });
+    }
+
+    function draw() {
+      drawGrid();
+      drawProperty();
+      drawDriveways();
+      drawBlocks();
+    }
+
+    function parseCoordinateText(text) {
+      return (text || "").trim().split(/\s+/).map(token => {
+        const parts = token.split(",").map(v => parseFloat(v));
+        return { lon: parts[0], lat: parts[1], alt: parts[2] || 0 };
+      }).filter(p => Number.isFinite(p.lon) && Number.isFinite(p.lat));
+    }
+
+    function uniqueRingPoints(coords) {
+      const pts = coords.slice();
+      if (pts.length > 1) {
+        const a = pts[0];
+        const b = pts[pts.length - 1];
+        if (Math.abs(a.lon - b.lon) < 1e-10 && Math.abs(a.lat - b.lat) < 1e-10) pts.pop();
+      }
+      return pts;
+    }
+
+    function elementsByLocalName(root, name) {
+      return Array.from(root.getElementsByTagNameNS("*", name));
+    }
+
+    function firstByLocalName(root, name) {
+      return elementsByLocalName(root, name)[0] || null;
+    }
+
+    function parseExtendedData(placemark) {
+      const out = {};
+      elementsByLocalName(placemark, "Data").forEach(node => {
+        const key = node.getAttribute("name");
+        const valueNode = firstByLocalName(node, "value");
+        if (key) out[key] = (valueNode?.textContent || "").trim();
+      });
+      return out;
+    }
+
+    function parseKml(kmlText) {
+      const xml = new DOMParser().parseFromString(kmlText, "application/xml");
+      if (xml.getElementsByTagName("parsererror").length) throw new Error("Could not parse KML/XML.");
+
+      const placemarks = elementsByLocalName(xml, "Placemark");
+      const polygonEntries = [];
+      placemarks.forEach(pm => {
+        elementsByLocalName(pm, "Polygon").forEach(poly => {
+          const coordsNode = firstByLocalName(poly, "coordinates");
+          const coords = uniqueRingPoints(parseCoordinateText(coordsNode?.textContent || ""));
+          if (coords.length >= 3) polygonEntries.push({ placemark: pm, coords });
+        });
+      });
+      if (!polygonEntries.length) throw new Error("No polygon coordinates found in the KML.");
+
+      let bestRing = polygonEntries[0].coords;
+      let bestArea = -Infinity;
+      polygonEntries.forEach(entry => {
+        const ring = entry.coords;
+        const centroid = ring.reduce((acc, p) => ({ lat: acc.lat + p.lat, lon: acc.lon + p.lon }), { lat: 0, lon: 0 });
+        centroid.lat /= ring.length;
+        centroid.lon /= ring.length;
+        const xy = ring.map(p => latLonToXY(p.lat, p.lon, centroid));
+        const area = Math.abs(polygonArea(xy));
+        if (area > bestArea) {
+          bestArea = area;
+          bestRing = ring;
+        }
+      });
+
+      const centroidLat = bestRing.reduce((sum, p) => sum + p.lat, 0) / bestRing.length;
+      const centroidLon = bestRing.reduce((sum, p) => sum + p.lon, 0) / bestRing.length;
+      const centroid = { lat: centroidLat, lon: centroidLon };
+      const propertyXY = bestRing.map(p => latLonToXY(p.lat, p.lon, centroid));
+
+      appState.propertyName = ((firstByLocalName(firstByLocalName(xml, "Document") || xml, "name") || firstByLocalName(xml, "name") || {}).textContent || "Property").trim();
+      appState.propertyLatLon = bestRing;
+      appState.propertyXY = propertyXY;
+      appState.centroid = centroid;
+      appState.blocks = [];
+      appState.driveways = [];
+      appState.nextBlockId = 1;
+      appState.nextDrivewayId = 1;
+
+      let importedDefaultSetback = null;
+      let importedEdgeSetbacks = null;
+
+      placemarks.forEach(pm => {
+        const ed = parseExtendedData(pm);
+        if (importedDefaultSetback == null && ed.setback_m) {
+          const s = parseFloat(ed.setback_m);
+          if (Number.isFinite(s)) importedDefaultSetback = s;
+        }
+        if (!importedEdgeSetbacks) {
+          const entries = Object.entries(ed)
+            .filter(([k]) => /^setback_edge_\d+$/.test(k))
+            .sort((a, b) => parseInt(a[0].split("_").pop(), 10) - parseInt(b[0].split("_").pop(), 10));
+          if (entries.length) {
+            const vals = entries.map(([,v]) => parseFloat(v)).filter(v => Number.isFinite(v));
+            if (vals.length) importedEdgeSetbacks = vals;
+          }
+        }
+
+        if (ed.width_m && ed.depth_m) {
+          const poly = elementsByLocalName(pm, "Polygon")[0];
+          const coordsNode = poly ? firstByLocalName(poly, "coordinates") : null;
+          const coords = uniqueRingPoints(parseCoordinateText(coordsNode?.textContent || ""));
+          let cx = 0, cy = 0;
+          if (coords.length >= 4) {
+            const unique = coords.slice(0, 4).map(c => latLonToXY(c.lat, c.lon, centroid));
+            const c = polygonCentroid(unique);
+            cx = c.x; cy = c.y;
+          }
+          const width = parseFloat(ed.width_m) || 16;
+          const depth = parseFloat(ed.depth_m) || 12;
+          const rotation = parseFloat(ed.rotation_deg) || 0;
+          const floors = Math.max(1, parseInt(ed.floors || "1", 10));
+          const floorHeight = parseFloat(ed.floor_height_m || "3") || 3;
+          const roofHeight = parseFloat(ed.roof_height_m || "1") || 1;
+          const stylePreset = ed.style_preset || "custom";
+          appState.blocks.push({
+            id: appState.nextBlockId++,
+            name: ((firstByLocalName(pm, "name")?.textContent) || `House ${appState.nextBlockId - 1}`).trim(),
+            width,
+            depth,
+            floors,
+            floorHeight,
+            roofType: ed.roof_type || "flat",
+            roofHeight,
+            baseAltitude: parseFloat(ed.base_altitude_m || "0") || 0,
+            rotation,
+            stylePreset,
+            fillColor: ed.fill_color || STYLE_PRESETS[stylePreset]?.fillColor || "#8aa9d6",
+            lineColor: ed.line_color || STYLE_PRESETS[stylePreset]?.lineColor || "#32507d",
+            fillOpacity: parseFloat(ed.fill_opacity || "0.7") || 0.7,
+            lineOpacity: parseFloat(ed.line_opacity || "1") || 1,
+            x: cx,
+            y: cy
+          });
+        }
+
+        if (ed.feature_type === "driveway") {
+          const line = firstByLocalName(pm, "LineString");
+          const coordsNode = line ? firstByLocalName(line, "coordinates") : null;
+          const pts = coordsNode ? parseCoordinateText(coordsNode.textContent || "").map(p => latLonToXY(p.lat, p.lon, centroid)) : [];
+          if (pts.length >= 2) {
+            appState.driveways.push({
+              id: appState.nextDrivewayId++,
+              name: ((firstByLocalName(pm, "name")?.textContent) || `Driveway ${appState.nextDrivewayId - 1}`).trim(),
+              width: parseFloat(ed.width_m || "4") || 4,
+              points: pts,
+              fillColor: ed.fill_color || "#9aa0a6",
+              lineColor: ed.line_color || "#4e5358",
+              fillOpacity: parseFloat(ed.fill_opacity || "0.68") || 0.68,
+              lineOpacity: parseFloat(ed.line_opacity || "1") || 1
+            });
+          }
+        }
+      });
+
+      appState.setbackDistance = Number.isFinite(importedDefaultSetback) ? importedDefaultSetback : appState.setbackDistance;
+      if (Array.isArray(importedEdgeSetbacks) && importedEdgeSetbacks.length === appState.propertyXY.length) {
+        appState.edgeSetbacks = importedEdgeSetbacks;
+      } else {
+        appState.edgeSetbacks = appState.propertyXY.map(() => appState.setbackDistance);
+      }
+
+      if (!appState.blocks.length && appState.propertyXY.length) {
+        const defaultBlock = createDefaultBlock();
+        appState.blocks.push(defaultBlock);
+        appState.selected = { type: "block", id: defaultBlock.id };
+      } else {
+        clearSelection();
+      }
+
+      updateInsetPolygon();
+      fitView();
+      refreshUI();
+      draw();
+      scheduleEmbeddedResizeKick();
+      setStatus(`Loaded ${appState.propertyName}. ${appState.blocks.length} house block(s) and ${appState.driveways.length} driveway(s) are available to edit.`, "good");
+    }
+
+    function escapeXml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    }
+
+    function htmlColorOpacityToKml(color, opacity) {
+      const hex = color.replace("#", "").padStart(6, "0");
+      const rr = hex.slice(0, 2);
+      const gg = hex.slice(2, 4);
+      const bb = hex.slice(4, 6);
+      const aa = Math.max(0, Math.min(255, Math.round(opacity * 255))).toString(16).padStart(2, "0");
+      return `${aa}${bb}${gg}${rr}`;
+    }
+
+    function coordsStringFromWorldPoints(points, altitude, close = true) {
+      const pts = close ? [...points, points[0]] : points;
+      return pts.map(p => {
+        const ll = xyToLatLon(p.x, p.y, appState.centroid);
+        return `${ll.lon.toFixed(8)},${ll.lat.toFixed(8)},${altitude.toFixed(2)}`;
+      }).join("\n");
+    }
+
+    function roofGeometryForBlock(block) {
+      const corners = getBlockCorners(block);
+      const baseAlt = block.baseAltitude;
+      const eaveAlt = block.baseAltitude + getEaveHeight(block);
+      const peakAlt = eaveAlt + block.roofHeight;
+      const walls = [];
+
+      for (let i = 0; i < corners.length; i++) {
+        const a = corners[i], b = corners[(i + 1) % corners.length];
+        walls.push([ { ...a, alt: baseAlt }, { ...b, alt: baseAlt }, { ...b, alt: eaveAlt }, { ...a, alt: eaveAlt } ]);
+      }
+
+      const polys = [];
+      const altMode = "relativeToGround";
+
+      if (block.roofType === "flat") {
+        polys.push({ points: corners, altitude: eaveAlt, altMode });
+      } else if (block.roofType === "gable") {
+        const ridgeA = localToWorld(block, -block.width / 2, 0);
+        const ridgeB = localToWorld(block, block.width / 2, 0);
+        const north = [corners[3], corners[2], ridgeB, ridgeA];
+        const south = [corners[0], corners[1], ridgeB, ridgeA];
+        polys.push({ points: north, altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt, peakAlt] });
+        polys.push({ points: south, altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt, peakAlt] });
+        const gableWest = [corners[0], corners[3], ridgeA];
+        const gableEast = [corners[1], corners[2], ridgeB];
+        polys.push({ points: gableWest, altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt] });
+        polys.push({ points: gableEast, altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt] });
+      } else if (block.roofType === "hip") {
+        const ridgeA = localToWorld(block, -block.width * 0.25, 0);
+        const ridgeB = localToWorld(block, block.width * 0.25, 0);
+        polys.push({ points: [corners[3], corners[2], ridgeB, ridgeA], altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt, peakAlt] });
+        polys.push({ points: [corners[0], corners[1], ridgeB, ridgeA], altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt, peakAlt] });
+        polys.push({ points: [corners[0], corners[3], ridgeA], altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt] });
+        polys.push({ points: [corners[1], corners[2], ridgeB], altitude: null, altMode, customHeights: [eaveAlt, eaveAlt, peakAlt] });
+      } else if (block.roofType === "aframe") {
+        const lowAlt = block.baseAltitude + Math.max(0.6, getEaveHeight(block) * 0.18);
+        const ridgeA = localToWorld(block, -block.width / 2, 0);
+        const ridgeB = localToWorld(block, block.width / 2, 0);
+        polys.push({ points: [corners[0], corners[1], ridgeB, ridgeA], altitude: null, altMode, customHeights: [lowAlt, lowAlt, peakAlt, peakAlt] });
+        polys.push({ points: [corners[3], corners[2], ridgeB, ridgeA], altitude: null, altMode, customHeights: [lowAlt, lowAlt, peakAlt, peakAlt] });
+        polys.push({ points: [corners[0], corners[3], ridgeA], altitude: null, altMode, customHeights: [lowAlt, lowAlt, peakAlt] });
+        polys.push({ points: [corners[1], corners[2], ridgeB], altitude: null, altMode, customHeights: [lowAlt, lowAlt, peakAlt] });
+        walls.length = 0;
+        for (let i = 0; i < corners.length; i++) {
+          const a = corners[i], b = corners[(i + 1) % corners.length];
+          const edgeAlt = (i === 0 || i === 2) ? lowAlt : lowAlt;
+          walls.push([ { ...a, alt: baseAlt }, { ...b, alt: baseAlt }, { ...b, alt: edgeAlt }, { ...a, alt: edgeAlt } ]);
+        }
+      }
+
+      return { baseAlt, eaveAlt, peakAlt, corners, walls, roofPolys: polys };
+    }
+
+    function polygonKmlFromPoints(points, colorFill, colorLine, lineWidth = 1, altitudeMode = "relativeToGround", customHeights = null, constantAltitude = 0) {
+      const pts = [...points, points[0]];
+      const coords = pts.map((p, idx) => {
+        const ll = xyToLatLon(p.x, p.y, appState.centroid);
+        const alt = customHeights ? customHeights[Math.min(idx, customHeights.length - 1 === idx ? idx - 1 : idx)] : constantAltitude;
+        return `${ll.lon.toFixed(8)},${ll.lat.toFixed(8)},${(alt ?? constantAltitude).toFixed(2)}`;
+      }).join("\n");
+      return `
+        <Placemark>
+          <Style>
+            <LineStyle><color>${colorLine}</color><width>${lineWidth}</width></LineStyle>
+            <PolyStyle><color>${colorFill}</color></PolyStyle>
+          </Style>
+          <Polygon>
+            <altitudeMode>${altitudeMode}</altitudeMode>
+            <outerBoundaryIs>
+              <LinearRing><coordinates>${coords}</coordinates></LinearRing>
+            </outerBoundaryIs>
+          </Polygon>
+        </Placemark>`;
+    }
+
+    function polygonKmlCustom(points, heights, colorFill, colorLine, lineWidth = 1) {
+      const pts = [...points, points[0]];
+      const hs = [...heights, heights[0]];
+      const coords = pts.map((p, idx) => {
+        const ll = xyToLatLon(p.x, p.y, appState.centroid);
+        return `${ll.lon.toFixed(8)},${ll.lat.toFixed(8)},${hs[idx].toFixed(2)}`;
+      }).join("\n");
+      return `
+        <Placemark>
+          <Style>
+            <LineStyle><color>${colorLine}</color><width>${lineWidth}</width></LineStyle>
+            <PolyStyle><color>${colorFill}</color></PolyStyle>
+          </Style>
+          <Polygon>
+            <altitudeMode>relativeToGround</altitudeMode>
+            <outerBoundaryIs>
+              <LinearRing><coordinates>${coords}</coordinates></LinearRing>
+            </outerBoundaryIs>
+          </Polygon>
+        </Placemark>`;
+    }
+
+    function blockFolderKml(block) {
+      const fillKml = htmlColorOpacityToKml(block.fillColor, block.fillOpacity);
+      const lineKml = htmlColorOpacityToKml(block.lineColor, block.lineOpacity);
+      const geo = roofGeometryForBlock(block);
+
+      const floorPlacemark = `
+        <Placemark>
+          <name>${escapeXml(block.name)}</name>
+          <ExtendedData>
+            <Data name="feature_type"><value>block</value></Data>
+            <Data name="style_preset"><value>${escapeXml(block.stylePreset)}</value></Data>
+            <Data name="width_m"><value>${block.width}</value></Data>
+            <Data name="depth_m"><value>${block.depth}</value></Data>
+            <Data name="floors"><value>${block.floors}</value></Data>
+            <Data name="floor_height_m"><value>${block.floorHeight}</value></Data>
+            <Data name="roof_type"><value>${block.roofType}</value></Data>
+            <Data name="roof_height_m"><value>${block.roofHeight}</value></Data>
+            <Data name="rotation_deg"><value>${block.rotation}</value></Data>
+            <Data name="base_altitude_m"><value>${block.baseAltitude}</value></Data>
+            <Data name="fill_color"><value>${block.fillColor}</value></Data>
+            <Data name="line_color"><value>${block.lineColor}</value></Data>
+            <Data name="fill_opacity"><value>${block.fillOpacity}</value></Data>
+            <Data name="line_opacity"><value>${block.lineOpacity}</value></Data>
+          </ExtendedData>
+          <Style>
+            <LineStyle><color>${lineKml}</color><width>1</width></LineStyle>
+            <PolyStyle><color>${fillKml}</color></PolyStyle>
+          </Style>
+          <Polygon>
+            <altitudeMode>relativeToGround</altitudeMode>
+            <outerBoundaryIs>
+              <LinearRing><coordinates>${coordsStringFromWorldPoints(geo.corners, block.baseAltitude)}</coordinates></LinearRing>
+            </outerBoundaryIs>
+          </Polygon>
+        </Placemark>`;
+      const wallPlacemarks = geo.walls.map(wall => {
+        const pts = wall.map(p => ({ x: p.x, y: p.y }));
+        const hs = wall.map(p => p.alt);
+        return polygonKmlCustom(pts, hs, fillKml, lineKml, 1);
+      }).join("\n");
+      const roofPlacemarks = geo.roofPolys.map(poly => {
+        if (poly.customHeights) return polygonKmlCustom(poly.points, poly.customHeights, fillKml, lineKml, 1);
+        return polygonKmlFromPoints(poly.points, fillKml, lineKml, 1, poly.altMode, null, poly.altitude);
+      }).join("\n");
+
+      return `
+      <Folder>
+        <name>${escapeXml(block.name)}</name>
+        ${floorPlacemark}
+        ${wallPlacemarks}
+        ${roofPlacemarks}
+      </Folder>`;
+    }
+
+    function drivewaySegments(driveway) {
+      const out = [];
+      for (let i = 0; i < driveway.points.length - 1; i++) {
+        const a = driveway.points[i];
+        const b = driveway.points[i + 1];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len * driveway.width / 2;
+        const ny = dx / len * driveway.width / 2;
+        out.push([
+          { x: a.x + nx, y: a.y + ny },
+          { x: b.x + nx, y: b.y + ny },
+          { x: b.x - nx, y: b.y - ny },
+          { x: a.x - nx, y: a.y - ny }
+        ]);
+      }
+      return out;
+    }
+
+    function drivewayFolderKml(driveway) {
+      const fillKml = htmlColorOpacityToKml(driveway.fillColor, driveway.fillOpacity);
+      const lineKml = htmlColorOpacityToKml(driveway.lineColor, driveway.lineOpacity);
+      const segmentPolys = drivewaySegments(driveway).map(seg => polygonKmlFromPoints(seg, fillKml, lineKml, 1, "clampToGround", null, 0)).join("\n");
+      const lineCoords = driveway.points.map(p => {
+        const ll = xyToLatLon(p.x, p.y, appState.centroid);
+        return `${ll.lon.toFixed(8)},${ll.lat.toFixed(8)},0`;
+      }).join("\n");
+      return `
+      <Folder>
+        <name>${escapeXml(driveway.name)}</name>
+        <Placemark>
+          <name>${escapeXml(driveway.name)} Centerline</name>
+          <ExtendedData>
+            <Data name="feature_type"><value>driveway</value></Data>
+            <Data name="width_m"><value>${driveway.width}</value></Data>
+            <Data name="fill_color"><value>${driveway.fillColor}</value></Data>
+            <Data name="line_color"><value>${driveway.lineColor}</value></Data>
+            <Data name="fill_opacity"><value>${driveway.fillOpacity}</value></Data>
+            <Data name="line_opacity"><value>${driveway.lineOpacity}</value></Data>
+          </ExtendedData>
+          <Style>
+            <LineStyle><color>${lineKml}</color><width>3</width></LineStyle>
+          </Style>
+          <LineString>
+            <tessellate>1</tessellate>
+            <altitudeMode>clampToGround</altitudeMode>
+            <coordinates>${lineCoords}</coordinates>
+          </LineString>
+        </Placemark>
+        ${segmentPolys}
+      </Folder>`;
+    }
+
+    function propertyPlacemarkKml() {
+      if (!appState.propertyLatLon.length) return "";
+      const coords = [...appState.propertyLatLon, appState.propertyLatLon[0]].map(p => `${p.lon.toFixed(8)},${p.lat.toFixed(8)},0`).join("\n");
+      let insetKml = "";
+      if (appState.showSetback && appState.insetPolygon.length >= 3) {
+        const insetCoords = coordsStringFromWorldPoints(appState.insetPolygon, 0);
+        insetKml = `
+        <Placemark>
+          <name>Buildable Area Approximation</name>
+          <Style>
+            <LineStyle><color>ff5cbcff</color><width>2</width></LineStyle>
+            <PolyStyle><color>225cbcff</color></PolyStyle>
+          </Style>
+          <Polygon>
+            <altitudeMode>clampToGround</altitudeMode>
+            <outerBoundaryIs>
+              <LinearRing><coordinates>${insetCoords}</coordinates></LinearRing>
+            </outerBoundaryIs>
+          </Polygon>
+        </Placemark>`;
+      }
+      return `
+      <Folder>
+        <name>Property</name>
+        <Placemark>
+          <name>${escapeXml(appState.propertyName)}</name>
+          <ExtendedData>
+            <Data name="setback_m"><value>${appState.setbackDistance}</value></Data>${appState.edgeSetbacks.map((s, i) => `<Data name="setback_edge_${i}"><value>${s}</value></Data>`).join("")}
+          </ExtendedData>
+          <Style>
+            <LineStyle><color>ffffaa44</color><width>2</width></LineStyle>
+            <PolyStyle><color>22ffaa44</color></PolyStyle>
+          </Style>
+          <Polygon>
+            <altitudeMode>clampToGround</altitudeMode>
+            <outerBoundaryIs>
+              <LinearRing><coordinates>${coords}</coordinates></LinearRing>
+            </outerBoundaryIs>
+          </Polygon>
+        </Placemark>
+        ${insetKml}
+      </Folder>`;
+    }
+
+    function generateKmlString() {
+      if (!appState.propertyLatLon.length) throw new Error("Load a property KML before exporting.");
+      const blockFolders = appState.blocks.map(blockFolderKml).join("\n");
+      const drivewayFolders = appState.driveways.map(drivewayFolderKml).join("\n");
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${escapeXml(appState.propertyName)} Design Study</name>
+    <open>1</open>
+    ${propertyPlacemarkKml()}
+    <Folder>
+      <name>Houses</name>
+      ${blockFolders}
+    </Folder>
+    <Folder>
+      <name>Driveways</name>
+      ${drivewayFolders}
+    </Folder>
+  </Document>
+</kml>`;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function safeFileBase() {
+      return (appState.propertyName || "property")
+        .replace(/[^a-z0-9]+/gi, "_")
+        .replace(/^_+|_+$/g, "")
+        .toLowerCase();
+    }
+
+    function exportKml() {
+      try {
+        const kml = generateKmlString();
+        downloadBlob(new Blob([kml], { type: "application/vnd.google-earth.kml+xml" }), `${safeFileBase()}_design_study.kml`);
+        setStatus("KML exported. Open it in Google Earth to view the houses, roofs, driveway, and property study.", "good");
+      } catch (err) {
+        setStatus(err.message || String(err), "warn");
+      }
+    }
+
+    async function exportKmz() {
+      try {
+        const kml = generateKmlString();
+        if (!window.JSZip) {
+          setStatus("KMZ export needs JSZip. KML export is still available.", "warn");
+          return;
+        }
+        const zip = new JSZip();
+        zip.file("doc.kml", kml);
+        zip.file("readme.txt", "Generated by Property KML Block Planner Pro");
+        const blob = await zip.generateAsync({ type: "blob" });
+        downloadBlob(blob, `${safeFileBase()}_design_study.kmz`);
+        setStatus("KMZ exported. Open it in Google Earth to review or share the design study.", "good");
+      } catch (err) {
+        setStatus(err.message || String(err), "warn");
+      }
+    }
+
+    function setDesignDefaults() {
+      appState.snapGrid = Math.max(0, displayToMeters(els.snapGridInput.value)) || 0;
+      appState.angleSnap = parseFloat(els.angleSnapInput.value) || 5;
+      appState.drivewayDefaultWidth = Math.max(0.5, displayToMeters(els.drivewayDefaultWidthInput.value)) || 4;
+      appState.setbackDistance = Math.max(0, displayToMeters(els.defaultSetbackInput.value)) || appState.setbackDistance;
+      draw();
+    }
+
+    function applyDefaultSetbackToAllSides() {
+      const setback = Math.max(0, displayToMeters(els.defaultSetbackInput.value));
+      appState.setbackDistance = setback;
+      appState.edgeSetbacks = appState.propertyXY.map(() => setback);
+      refreshUI();
+      draw();
+    }
+
+    function pickBlockAtScreen(x, y) {
+      const world = screenToWorld(x, y);
+      for (let i = appState.blocks.length - 1; i >= 0; i--) {
+        const block = appState.blocks[i];
+        if (appState.selected.type === "block" && appState.selected.id === block.id) {
+          const handle = worldToScreen(getBlockCorners(block)[1].x, getBlockCorners(block)[1].y);
+          if (Math.hypot(handle.x - x, handle.y - y) <= 10) return { type: "block-rotate", block };
+        }
+        if (pointInPolygon(world, getBlockCorners(block))) return { type: "block-move", block };
+      }
+      return null;
+    }
+
+    function pickDrivewayPointAtScreen(x, y) {
+      for (let i = appState.driveways.length - 1; i >= 0; i--) {
+        const d = appState.driveways[i];
+        for (let j = d.points.length - 1; j >= 0; j--) {
+          const s = worldToScreen(d.points[j].x, d.points[j].y);
+          if (Math.hypot(s.x - x, s.y - y) <= 10) return { driveway: d, pointIndex: j };
+        }
+      }
+      return null;
+    }
+
+    function updateSelectedBlockFromInputs() {
+      const block = getSelectedBlock();
+      if (!block) return;
+      block.name = els.nameInput.value || block.name;
+      block.stylePreset = els.stylePresetInput.value || "custom";
+      block.width = Math.max(1, displayToMeters(els.widthInput.value) || block.width);
+      block.depth = Math.max(1, displayToMeters(els.depthInput.value) || block.depth);
+      block.floors = Math.max(1, parseInt(els.floorsInput.value || block.floors, 10));
+      block.floorHeight = Math.max(1, displayToMeters(els.floorHeightInput.value) || block.floorHeight);
+      block.roofType = els.roofTypeInput.value || block.roofType;
+      block.roofHeight = Math.max(0, displayToMeters(els.roofHeightInput.value) || block.roofHeight);
+      block.baseAltitude = displayToMeters(els.baseAltInput.value) || 0;
+      block.x = displayToMeters(els.xInput.value) || 0;
+      block.y = displayToMeters(els.yInput.value) || 0;
+      block.rotation = normalizeAngle(parseFloat(els.rotInput.value) || 0);
+      block.fillColor = els.fillColorInput.value;
+      block.lineColor = els.lineColorInput.value;
+      block.fillOpacity = parseFloat(els.fillOpacityInput.value) || 0;
+      block.lineOpacity = parseFloat(els.lineOpacityInput.value) || 0;
+      draw();
+    }
+
+    function commitSelectedBlockInputs() {
+      updateSelectedBlockFromInputs();
+      refreshUI();
+      draw();
+    }
+
+    function updateSelectedDrivewayFromInputs() {
+      const d = getSelectedDriveway();
+      if (!d) return;
+      d.name = els.drivewayNameInput.value || d.name;
+      d.width = Math.max(0.5, displayToMeters(els.drivewayWidthInput.value) || d.width);
+      d.fillColor = els.drivewayColorInput.value;
+      d.lineColor = els.drivewayLineColorInput.value;
+      d.fillOpacity = parseFloat(els.drivewayOpacityInput.value) || 0;
+      d.lineOpacity = parseFloat(els.drivewayLineOpacityInput.value) || 0;
+      draw();
+    }
+
+    function commitSelectedDrivewayInputs() {
+      updateSelectedDrivewayFromInputs();
+      refreshUI();
+      draw();
+    }
+
+    function clearDesign() {
+      appState.blocks = [];
+      appState.driveways = [];
+      clearSelection();
+      draw();
+      setStatus("Design cleared. The property boundary stays loaded.", "warn");
+    }
+
+    els.kmlInput.addEventListener("change", async e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        parseKml(text);
+      } catch (err) {
+        setStatus(err.message || String(err), "warn");
+      }
+    });
+
+    els.fitBtn.onclick = fitView;
+    els.clearBtn.onclick = clearDesign;
+    els.exportKmlBtn.onclick = exportKml;
+    els.exportKmzBtn.onclick = exportKmz;
+    if (els.defaultSetbackInput) els.defaultSetbackInput.oninput = setDesignDefaults;
+    els.snapGridInput.oninput = setDesignDefaults;
+    els.angleSnapInput.oninput = setDesignDefaults;
+    els.drivewayDefaultWidthInput.oninput = setDesignDefaults;
+    if (els.applyDefaultSetbackBtn) els.applyDefaultSetbackBtn.onclick = applyDefaultSetbackToAllSides;
+
+    els.toggleSnapBtn.onclick = () => { appState.snapEnabled = !appState.snapEnabled; updateToggleButtons(); };
+    els.toggleSetbackBtn.onclick = () => { appState.showSetback = !appState.showSetback; updateToggleButtons(); draw(); };
+    els.toggleLabelsBtn.onclick = () => { appState.labelsEnabled = !appState.labelsEnabled; updateToggleButtons(); draw(); };
+    els.toggleMetricBtn.onclick = () => { appState.metricEnabled = !appState.metricEnabled; refreshUI(); draw(); };
+
+    els.addBlockBtn.onclick = () => {
+      if (!appState.propertyXY.length) return setStatus("Load a property KML first.", "warn");
+      createBlock();
+    };
+    els.addGenericBtn.onclick = () => {
+      if (!appState.propertyXY.length) return setStatus("Load a property KML first.", "warn");
+      createGenericBlock();
+    };
+    els.duplicateBtn.onclick = duplicateSelected;
+    els.deleteBtn.onclick = deleteSelected;
+    els.startDrivewayBtn.onclick = () => {
+      if (!appState.propertyXY.length) return setStatus("Load a property KML first.", "warn");
+      createDriveway(true);
+    };
+    els.addDrivewayPointBtn.onclick = () => addPointToSelectedDriveway(false);
+    els.deleteDrivewayPointBtn.onclick = deletePointFromSelectedDriveway;
+    els.drivewayPointStartBtn.onclick = () => addPointToSelectedDriveway(true);
+    els.drivewayPointEndBtn.onclick = () => addPointToSelectedDriveway(false);
+    els.drivewayMoveInsideBtn.onclick = () => {
+      const d = getSelectedDriveway();
+      if (!d) return;
+      moveDrivewayNearSiteCenter(d);
+    };
+
+    els.rotLeftBtn.onclick = () => {
+      const block = getSelectedBlock();
+      if (!block) return;
+      block.rotation = normalizeAngle(block.rotation - 15);
+      refreshUI();
+      draw();
+    };
+    els.rotRightBtn.onclick = () => {
+      const block = getSelectedBlock();
+      if (!block) return;
+      block.rotation = normalizeAngle(block.rotation + 15);
+      refreshUI();
+      draw();
+    };
+    els.insideBtn.onclick = () => {
+      const block = getSelectedBlock();
+      if (!block) return;
+      moveBlockInside(block);
+    };
+    if (els.moveSelectionInsideBtn) els.moveSelectionInsideBtn.onclick = () => {
+      const block = getSelectedBlock();
+      if (block) moveBlockInside(block);
+    };
+
+    [
+      els.nameInput, els.stylePresetInput, els.widthInput, els.depthInput, els.floorsInput,
+      els.floorHeightInput, els.roofTypeInput, els.roofHeightInput, els.baseAltInput,
+      els.xInput, els.yInput, els.rotInput, els.fillColorInput, els.lineColorInput,
+      els.fillOpacityInput, els.lineOpacityInput
+    ].forEach(el => {
+      el.addEventListener("input", updateSelectedBlockFromInputs);
+      el.addEventListener("change", commitSelectedBlockInputs);
+      el.addEventListener("blur", commitSelectedBlockInputs);
+    });
+
+    [
+      els.drivewayNameInput, els.drivewayWidthInput, els.drivewayColorInput,
+      els.drivewayLineColorInput, els.drivewayOpacityInput, els.drivewayLineOpacityInput
+    ].forEach(el => {
+      el.addEventListener("input", updateSelectedDrivewayFromInputs);
+      el.addEventListener("change", commitSelectedDrivewayInputs);
+      el.addEventListener("blur", commitSelectedDrivewayInputs);
+    });
+
+    els.rotSlider.addEventListener("input", () => {
+      const block = getSelectedBlock();
+      if (!block) return;
+      block.rotation = normalizeAngle(parseFloat(els.rotSlider.value));
+      refreshUI();
+      draw();
+    });
+
+    els.stylePresetInput.addEventListener("change", () => {
+      const block = getSelectedBlock();
+      if (!block) return;
+      applyPresetToBlock(block, els.stylePresetInput.value, true);
+      refreshUI();
+      draw();
+    });
+
+    els.presetBtns.forEach(btn => {
+      btn.onclick = () => {
+        const block = getSelectedBlock();
+        if (!block) return;
+        applyPresetToBlock(block, btn.dataset.preset, true);
+        refreshUI();
+        draw();
+      };
+    });
+
+    els.canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+    els.canvas.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (els.canvas.setPointerCapture) {
+        try { els.canvas.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+      const rect = els.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (e.button === 2 || e.button === 1) {
+        appState.pointer.mode = "pan";
+        appState.pointer.startX = x;
+        appState.pointer.startY = y;
+        appState.pointer.panStartOffsetX = appState.view.offsetX;
+        appState.pointer.panStartOffsetY = appState.view.offsetY;
+        return;
+      }
+
+      if (appState.mode === "draw-driveway") {
+        const d = getSelectedDriveway();
+        if (!d) return;
+        const pt = snapPoint(screenToWorld(x, y));
+        d.points.push(pt);
+        refreshUI();
+        draw();
+        return;
+      }
+
+      const drivewayHit = pickDrivewayPointAtScreen(x, y);
+      if (drivewayHit) {
+        selectItem("driveway", drivewayHit.driveway.id);
+        appState.pointer.mode = "driveway-point";
+        appState.pointer.targetType = "driveway";
+        appState.pointer.targetId = drivewayHit.driveway.id;
+        appState.pointer.pointIndex = drivewayHit.pointIndex;
+        return;
+      }
+
+      const hit = pickBlockAtScreen(x, y);
+      if (hit) {
+        if (hit.type === "block-rotate") {
+          selectItem("block", hit.block.id);
+          appState.pointer.mode = "block-rotate";
+          appState.pointer.targetType = "block";
+          appState.pointer.targetId = hit.block.id;
+          return;
+        }
+        if (hit.type === "block-move") {
+          selectItem("block", hit.block.id);
+          const world = screenToWorld(x, y);
+          appState.pointer.mode = "block-move";
+          appState.pointer.targetType = "block";
+          appState.pointer.targetId = hit.block.id;
+          appState.pointer.dragOffsetX = world.x - hit.block.x;
+          appState.pointer.dragOffsetY = world.y - hit.block.y;
+          return;
+        }
+      }
+
+      clearSelection();
+    });
+
+    window.addEventListener("pointermove", e => {
+      const rect = els.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+      if (!appState.pointer.mode) return;
+
+      if (appState.pointer.mode === "pan") {
+        appState.view.offsetX = appState.pointer.panStartOffsetX + (x - appState.pointer.startX);
+        appState.view.offsetY = appState.pointer.panStartOffsetY + (y - appState.pointer.startY);
+        draw();
+        return;
+      }
+
+      if (appState.pointer.mode === "block-move") {
+        const block = appState.blocks.find(b => b.id === appState.pointer.targetId);
+        if (!block) return;
+        let world = screenToWorld(x, y);
+        world = { x: world.x - appState.pointer.dragOffsetX, y: world.y - appState.pointer.dragOffsetY };
+        world = snapPoint(world);
+        block.x = world.x;
+        block.y = world.y;
+        refreshUI();
+        draw();
+        return;
+      }
+
+      if (appState.pointer.mode === "block-rotate") {
+        const block = appState.blocks.find(b => b.id === appState.pointer.targetId);
+        if (!block) return;
+        const world = screenToWorld(x, y);
+        const ang = Math.atan2(world.y - block.y, world.x - block.x) * 180 / Math.PI;
+        const cornerBias = Math.atan2(block.depth / 2, block.width / 2) * 180 / Math.PI;
+        block.rotation = snappedAngle(ang - cornerBias);
+        refreshUI();
+        draw();
+        return;
+      }
+
+      if (appState.pointer.mode === "driveway-point") {
+        const driveway = appState.driveways.find(d => d.id === appState.pointer.targetId);
+        if (!driveway) return;
+        driveway.points[appState.pointer.pointIndex] = snapPoint(screenToWorld(x, y));
+        refreshUI();
+        draw();
+      }
+    });
+
+    window.addEventListener("pointerup", e => {
+      if (els.canvas.releasePointerCapture) {
+        try { els.canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+      appState.pointer.mode = null;
+      appState.pointer.targetType = null;
+      appState.pointer.targetId = null;
+      appState.pointer.pointIndex = null;
+    });
+
+    els.canvas.addEventListener("wheel", e => {
+      e.preventDefault();
+      const rect = els.canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const before = screenToWorld(sx, sy);
+      const factor = e.deltaY < 0 ? 1.12 : 0.89;
+      appState.view.scale = Math.max(0.02, Math.min(600, appState.view.scale * factor));
+      const afterScreen = worldToScreen(before.x, before.y);
+      appState.view.offsetX += sx - afterScreen.x;
+      appState.view.offsetY += sy - afterScreen.y;
+      draw();
+    }, { passive: false });
+
+    window.addEventListener("keydown", e => {
+      if (e.key === "Enter" && appState.mode === "draw-driveway") {
+        appState.mode = "select";
+        updateModeInfo();
+        setStatus("Driveway drawing finished.", "good");
+      }
+      if (e.key === "Escape" && appState.mode === "draw-driveway") {
+        appState.mode = "select";
+        updateModeInfo();
+        setStatus("Driveway drawing canceled. Current points are still editable.", "warn");
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && appState.selected.type && document.activeElement?.tagName !== "INPUT") {
+        deleteSelected();
+      }
+    });
+
+
+    function initCollapsibleCards() {
+      document.querySelectorAll(".sidebar .card").forEach(card => {
+        const title = card.querySelector(":scope > .section-title");
+        if (!title || card.querySelector(":scope > .card-body")) return;
+
+        card.classList.add("collapsible");
+        const body = document.createElement("div");
+        body.className = "card-body";
+
+        let next = title.nextSibling;
+        while (next) {
+          const current = next;
+          next = next.nextSibling;
+          body.appendChild(current);
+        }
+        card.appendChild(body);
+
+        const syncAria = () => {
+          const expanded = !card.classList.contains("collapsed");
+          title.setAttribute("aria-expanded", expanded ? "true" : "false");
+        };
+
+        const toggle = () => {
+          card.classList.toggle("collapsed");
+          syncAria();
+          requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+          setTimeout(() => window.dispatchEvent(new Event("resize")), 220);
+        };
+
+        title.setAttribute("role", "button");
+        title.setAttribute("tabindex", "0");
+        syncAria();
+
+        title.addEventListener("click", toggle);
+        title.addEventListener("keydown", e => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        });
+      });
+    }
+
+    initCollapsibleCards();
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    refreshUI();
+    updateModeInfo();
+    draw();
+    scheduleEmbeddedResizeKick();
+  </script>
+</body>
+</html>
